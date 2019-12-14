@@ -42,9 +42,8 @@ impl ViGEm {
     pub fn target_x360_update(&mut self, report: XUsbReport) {
         unsafe {
             for (target, target_type) in self.targets.iter_mut() {
-                match target_type {
-                    TargetType::X360 => vigem_api_gen::vigem_target_x360_update(self.client, *target, report),
-                    _ => vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_NONE,
+                if let TargetType::X360 = target_type {
+                    vigem_api_gen::vigem_target_x360_update(self.client, *target, report);
                 };
             };
         };

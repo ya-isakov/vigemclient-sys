@@ -27,6 +27,7 @@ fn main() {
         .define("_LIB", None).define("_WINDLL", None)
         .define("_UNICODE", None).define("UNICODE", None)
         .flag("/EHsc") //needed for C++ error unwinding
+        .object("setupapi.lib")
 //      standard MSVC flags
 /*        .flag("/Gd").flag("/TP").flag("/FC")
         .flag("/Zi").flag("/W3").flag("/WX-")
