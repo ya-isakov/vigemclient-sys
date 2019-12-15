@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 fn main() {
     let bindings = bindgen::Builder::default()
-        .default_enum_style(bindgen::EnumVariation::Rust)
+        .default_enum_style(bindgen::EnumVariation::Rust{non_exhaustive: false})
         .raw_line("#![allow(dead_code, non_camel_case_types, non_snake_case)]")
         .raw_line("#![allow(clippy::unreadable_literal)]")
         .header("src/win.h")
