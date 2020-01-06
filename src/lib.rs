@@ -1,7 +1,7 @@
 mod vigem_api_gen;
 pub use vigem_api_gen::XUSB_REPORT as XUsbReport;
 pub use vigem_api_gen::{DS4_BUTTONS, XUSB_BUTTON};
-use vigem_api_gen::{PVIGEM_CLIENT, PVIGEM_TARGET, UCHAR, PVOID};
+use vigem_api_gen::{PVIGEM_CLIENT, PVIGEM_TARGET, PVOID, UCHAR};
 
 pub enum TargetType {
     X360,
@@ -21,7 +21,10 @@ impl ViGEm {
             if res != vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_NONE {
                 return Err(format!("Error connecting to bus {:?}", res));
             }
-            Ok(ViGEm { client, targets: Vec::new() })
+            Ok(ViGEm {
+                client,
+                targets: Vec::new(),
+            })
         }
     }
 
@@ -46,7 +49,7 @@ impl ViGEm {
                 if let TargetType::X360 = target_type {
                     vigem_api_gen::vigem_target_x360_update(self.client, *target, report);
                 };
-            };
+            }
         };
     }
 
@@ -60,13 +63,19 @@ impl ViGEm {
         };
     }*/
     pub fn register_x360_notification<F>(&self, notification: F)
-    where F: FnMut(UCHAR, UCHAR, UCHAR),
+    where
+        F: FnMut(UCHAR, UCHAR, UCHAR),
     {
         let data = Box::into_raw(Box::new(notification));
         unsafe {
             for (target, target_type) in self.targets.iter() {
                 if let TargetType::X360 = target_type {
-                    vigem_api_gen::vigem_target_x360_register_notification(self.client, *target, Some(call_closure::<F>), data as _);
+                    vigem_api_gen::vigem_target_x360_register_notification(
+                        self.client,
+                        *target,
+                        Some(call_closure::<F>),
+                        data as _,
+                    );
                 }
             }
         }
@@ -85,14 +94,13 @@ impl Drop for ViGEm {
 }
 
 unsafe extern "C" fn call_closure<F>(
-        _client: PVIGEM_CLIENT,
-        _target: PVIGEM_TARGET,
-        large_motor: UCHAR,
-        small_motor: UCHAR,
-        led_number: UCHAR,
-        user_data: PVOID,
-    )
-where
+    _client: PVIGEM_CLIENT,
+    _target: PVIGEM_TARGET,
+    large_motor: UCHAR,
+    small_motor: UCHAR,
+    led_number: UCHAR,
+    user_data: PVOID,
+) where
     F: FnMut(UCHAR, UCHAR, UCHAR),
 {
     let callback_ptr = user_data as *mut F;

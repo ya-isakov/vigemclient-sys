@@ -3,6 +3,7 @@ name = "vigemclient-sys"
 version = "0.1.0"
 authors = ["Yaroslav Isakov <yaroslav.isakov@gmail.com>"]
 edition = "2018"
+links = "ViGEmClient"
 
 [dependencies]
 
