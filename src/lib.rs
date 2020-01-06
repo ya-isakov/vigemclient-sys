@@ -1,6 +1,7 @@
 mod vigem_api_gen;
 pub use vigem_api_gen::XUSB_REPORT as XUsbReport;
 pub use vigem_api_gen::{DS4_BUTTONS, XUSB_BUTTON};
+use vigem_api_gen::{PVIGEM_CLIENT, PVIGEM_TARGET, UCHAR, PVOID};
 
 pub enum TargetType {
     X360,
@@ -39,14 +40,36 @@ impl ViGEm {
         Ok(())
     }
 
-    pub fn target_x360_update(&mut self, report: XUsbReport) {
+    pub fn target_x360_update(&self, report: XUsbReport) {
         unsafe {
-            for (target, target_type) in self.targets.iter_mut() {
+            for (target, target_type) in self.targets.iter() {
                 if let TargetType::X360 = target_type {
                     vigem_api_gen::vigem_target_x360_update(self.client, *target, report);
                 };
             };
         };
+    }
+
+    /*pub fn register_notification(&self, notification: vigem_api_gen::EVT_VIGEM_X360_NOTIFICATION, user_data: vigem_api_gen::PVOID) {
+        unsafe {
+            for (target, target_type) in self.targets.iter() {
+               if let TargetType::X360 = target_type {
+                    vigem_api_gen::vigem_target_x360_register_notification(self.client, *target, notification, user_data);
+               };
+            };
+        };
+    }*/
+    pub fn register_x360_notification<F>(&self, notification: F)
+    where F: FnMut(UCHAR, UCHAR, UCHAR),
+    {
+        let data = Box::into_raw(Box::new(notification));
+        unsafe {
+            for (target, target_type) in self.targets.iter() {
+                if let TargetType::X360 = target_type {
+                    vigem_api_gen::vigem_target_x360_register_notification(self.client, *target, Some(call_closure::<F>), data as _);
+                }
+            }
+        }
     }
 }
 
@@ -59,4 +82,20 @@ impl Drop for ViGEm {
             }
         }
     }
+}
+
+unsafe extern "C" fn call_closure<F>(
+        _client: PVIGEM_CLIENT,
+        _target: PVIGEM_TARGET,
+        large_motor: UCHAR,
+        small_motor: UCHAR,
+        led_number: UCHAR,
+        user_data: PVOID,
+    )
+where
+    F: FnMut(UCHAR, UCHAR, UCHAR),
+{
+    let callback_ptr = user_data as *mut F;
+    let callback = &mut *callback_ptr;
+    callback(large_motor, small_motor, led_number);
 }
