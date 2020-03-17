@@ -9,9 +9,12 @@ pub enum TargetType {
 }
 
 pub struct ViGEm {
-    client: vigem_api_gen::PVIGEM_CLIENT,
-    targets: Vec<(vigem_api_gen::PVIGEM_TARGET, TargetType)>,
+    client: PVIGEM_CLIENT,
+    targets: Vec<(PVIGEM_TARGET, TargetType, Option<PVOID>)>,
 }
+
+type Callback = dyn FnMut(UCHAR, UCHAR, UCHAR) + 'static;
+type BCallback = Box<Callback>;
 
 impl ViGEm {
     pub fn new() -> Result<ViGEm, String> {
@@ -38,14 +41,14 @@ impl ViGEm {
             if res != vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_NONE {
                 return Err(format!("Error adding target: {:?}", res));
             }
-            self.targets.push((target, target_type));
+            self.targets.push((target, target_type, None));
         }
         Ok(())
     }
 
     pub fn target_x360_update(&self, report: XUsbReport) {
         unsafe {
-            for (target, target_type) in self.targets.iter() {
+            for (target, target_type, _) in self.targets.iter() {
                 if let TargetType::X360 = target_type {
                     vigem_api_gen::vigem_target_x360_update(self.client, *target, report);
                 };
@@ -53,57 +56,62 @@ impl ViGEm {
         };
     }
 
-    /*pub fn register_notification(&self, notification: vigem_api_gen::EVT_VIGEM_X360_NOTIFICATION, user_data: vigem_api_gen::PVOID) {
-        unsafe {
-            for (target, target_type) in self.targets.iter() {
-               if let TargetType::X360 = target_type {
-                    vigem_api_gen::vigem_target_x360_register_notification(self.client, *target, notification, user_data);
-               };
-            };
-        };
-    }*/
-    pub fn register_x360_notification<F>(&self, notification: F)
+    pub fn register_x360_notification<F>(&mut self, notification: F)
     where
-        F: FnMut(UCHAR, UCHAR, UCHAR),
+        F: FnMut(UCHAR, UCHAR, UCHAR) + 'static,
     {
-        let data = Box::into_raw(Box::new(notification));
+        let cb: Box<BCallback> = Box::new(Box::new(notification));
+        let data_ptr = Box::into_raw(cb) as PVOID;
         unsafe {
-            for (target, target_type) in self.targets.iter() {
+            for (target, target_type, notif) in self.targets.iter_mut() {
                 if let TargetType::X360 = target_type {
                     vigem_api_gen::vigem_target_x360_register_notification(
                         self.client,
                         *target,
-                        Some(call_closure::<F>),
-                        data as _,
+                        Some(call_closure),
+                        data_ptr,
                     );
+                    *notif = Some(data_ptr);
                 }
             }
         }
     }
 }
 
-#[cfg(target_os = "windows")]
+unsafe fn drop_box(user_data: PVOID) {
+    // I hope that I correctly clean this...
+    let _: Box<BCallback> = Box::from_raw(user_data as *mut _);
+}
+
+//#[cfg(target_os = "windows")]
 impl Drop for ViGEm {
     fn drop(&mut self) {
         unsafe {
-            for (target, _) in self.targets.iter_mut() {
-                let _res = vigem_api_gen::vigem_target_remove(self.client, *target);
+            for (target, target_type, notif) in self.targets.iter_mut() {
+                if let TargetType::X360 = target_type {
+                    if let Some(n) = *notif {
+                        println!("Releasing notification");
+                        vigem_api_gen::vigem_target_x360_unregister_notification(*target);
+                        drop_box(n);
+                        *notif = None;
+                    }
+                    let _res = vigem_api_gen::vigem_target_remove(self.client, *target);
+                }
             }
         }
     }
 }
 
-unsafe extern "C" fn call_closure<F>(
+unsafe extern "C" fn call_closure(
     _client: PVIGEM_CLIENT,
     _target: PVIGEM_TARGET,
     large_motor: UCHAR,
     small_motor: UCHAR,
     led_number: UCHAR,
     user_data: PVOID,
-) where
-    F: FnMut(UCHAR, UCHAR, UCHAR),
+)
 {
-    let callback_ptr = user_data as *mut F;
-    let callback = &mut *callback_ptr;
+    // Black magic, not sure, what happens here, but clippy gave this as a replacement for mem::transmute
+    let callback: &mut Callback = &mut *(user_data as *mut BCallback);
     callback(large_motor, small_motor, led_number);
 }
