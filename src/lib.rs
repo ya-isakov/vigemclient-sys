@@ -1,7 +1,7 @@
 mod vigem_api_gen;
 pub use vigem_api_gen::XUSB_REPORT as XUsbReport;
 pub use vigem_api_gen::{DS4_BUTTONS, XUSB_BUTTON};
-use vigem_api_gen::{PVIGEM_CLIENT, PVIGEM_TARGET, PVOID, UCHAR};
+use vigem_api_gen::{PVIGEM_CLIENT, PVIGEM_TARGET, LPVOID, UCHAR};
 
 pub enum TargetType {
     X360,
@@ -10,7 +10,7 @@ pub enum TargetType {
 
 pub struct ViGEm {
     client: PVIGEM_CLIENT,
-    targets: Vec<(PVIGEM_TARGET, TargetType, Option<PVOID>)>,
+    targets: Vec<(PVIGEM_TARGET, TargetType, Option<LPVOID>)>,
 }
 
 type Callback = dyn FnMut(UCHAR, UCHAR, UCHAR) + 'static;
@@ -61,7 +61,7 @@ impl ViGEm {
         F: FnMut(UCHAR, UCHAR, UCHAR) + 'static,
     {
         let cb: Box<BCallback> = Box::new(Box::new(notification));
-        let data_ptr = Box::into_raw(cb) as PVOID;
+        let data_ptr = Box::into_raw(cb) as LPVOID;
         unsafe {
             for (target, target_type, notif) in self.targets.iter_mut() {
                 if let TargetType::X360 = target_type {
@@ -78,7 +78,7 @@ impl ViGEm {
     }
 }
 
-unsafe fn drop_box(user_data: PVOID) {
+unsafe fn drop_box(user_data: LPVOID) {
     // I hope that I correctly clean this...
     let _: Box<BCallback> = Box::from_raw(user_data as *mut _);
 }
@@ -108,10 +108,10 @@ unsafe extern "C" fn call_closure(
     large_motor: UCHAR,
     small_motor: UCHAR,
     led_number: UCHAR,
-    user_data: PVOID,
+    user_data: LPVOID,
 )
 {
-    // Black magic, not sure, what happens here, but clippy gave this as a replacement for mem::transmute
+    // Black magic. Not sure, what happens here, but clippy gave this as a replacement for mem::transmute
     let callback: &mut Callback = &mut *(user_data as *mut BCallback);
     callback(large_motor, small_motor, led_number);
 }

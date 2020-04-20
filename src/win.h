@@ -16,3 +16,4 @@ typedef unsigned long long ULONG_PTR;
 typedef ULONG_PTR DWORD_PTR;
 typedef int BOOL;
 typedef ULONG *PULONG;
+typedef void *LPVOID;
