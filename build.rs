@@ -1,6 +1,3 @@
-use bindgen;
-use cc;
-
 use std::path::PathBuf;
 
 fn main() {
@@ -9,7 +6,7 @@ fn main() {
             non_exhaustive: false,
         })
         .raw_line("#![allow(dead_code, non_camel_case_types, non_snake_case)]")
-        .raw_line("#![allow(clippy::unreadable_literal)]")
+        .raw_line("#![allow(clippy::unreadable_literal, clippy::upper_case_acronyms)]")
         .header("src/win.h")
         .header("src/ViGEmClient/include/ViGEm/Client.h")
         .clang_args(&["-I", "src/ViGEmClient/include"])
@@ -19,6 +16,9 @@ fn main() {
     bindings
         .write_to_file(out_path)
         .expect("Couldn't write bindings!");
+    if cfg!(not(target_os = "windows")) {
+        return;
+    }
     cc::Build::new()
         .cpp(true)
         .static_crt(true)
@@ -31,6 +31,7 @@ fn main() {
         .define("_WINDLL", None)
         .define("_UNICODE", None)
         .define("UNICODE", None)
+        .define("WIN32_LEAN_AND_MEAN", None)
         .flag("/EHsc") //needed for C++ error unwinding
         .object("setupapi.lib")
         //      standard MSVC flags
