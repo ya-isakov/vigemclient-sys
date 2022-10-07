@@ -16,9 +16,6 @@ fn main() {
     bindings
         .write_to_file(out_path)
         .expect("Couldn't write bindings!");
-    if cfg!(not(target_os = "windows")) {
-        return;
-    }
     cc::Build::new()
         .cpp(true)
         .static_crt(true)

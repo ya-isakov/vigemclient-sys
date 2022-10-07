@@ -22,7 +22,6 @@ pub struct ViGEmTarget {
 type Callback = dyn FnMut(UCHAR, UCHAR, UCHAR) + 'static;
 type BCallback = Box<Callback>;
 
-#[cfg(target_os = "windows")]
 impl ViGEm {
     pub fn new() -> Result<ViGEm, vigem_api_gen::VIGEM_ERROR> {
         unsafe {
@@ -117,7 +116,6 @@ unsafe fn drop_box(user_data: LPVOID) {
     Box::from_raw(user_data as *mut _);
 }
 
-#[cfg(target_os = "windows")]
 impl Drop for ViGEm {
     fn drop(&mut self) {
         unsafe {

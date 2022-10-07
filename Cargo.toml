@@ -8,5 +8,5 @@ links = "ViGEmClient"
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.52"
+bindgen = "0.58"
 cc = "1.0"
