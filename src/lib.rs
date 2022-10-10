@@ -1,6 +1,6 @@
 mod vigem_api_gen;
 pub use vigem_api_gen::XUSB_REPORT as XUsbReport;
-pub use vigem_api_gen::{DS4_BUTTONS, XUSB_BUTTON};
+pub use vigem_api_gen::{DS4_BUTTONS, VIGEM_ERROR, XUSB_BUTTON};
 use vigem_api_gen::{LPVOID, PVIGEM_CLIENT, PVIGEM_TARGET, UCHAR};
 
 pub enum TargetType {
@@ -23,65 +23,51 @@ type Callback = dyn FnMut(UCHAR, UCHAR, UCHAR) + 'static;
 type BCallback = Box<Callback>;
 
 impl ViGEm {
-    pub fn new() -> Result<ViGEm, vigem_api_gen::VIGEM_ERROR> {
-        unsafe {
-            let client = vigem_api_gen::vigem_alloc();
-            match vigem_api_gen::vigem_connect(client) {
-                vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_NONE => Ok(ViGEm {
-                    client,
-                    targets: Vec::new(),
-                }),
-                err => Err(err),
-            }
+    pub fn new() -> Result<ViGEm, VIGEM_ERROR> {
+        let client = unsafe { vigem_api_gen::vigem_alloc() };
+        match unsafe { vigem_api_gen::vigem_connect(client) } {
+            VIGEM_ERROR::VIGEM_ERROR_NONE => Ok(ViGEm {
+                client,
+                targets: Vec::new(),
+            }),
+            err => Err(err),
         }
     }
 
-    pub fn add_target(
-        &mut self,
-        target_type: TargetType,
-    ) -> Result<(), vigem_api_gen::VIGEM_ERROR> {
-        unsafe {
-            let target = match target_type {
-                TargetType::X360 => vigem_api_gen::vigem_target_x360_alloc(),
-                TargetType::Ds4 => vigem_api_gen::vigem_target_ds4_alloc(),
-            };
-            match vigem_api_gen::vigem_target_add(self.client, target) {
-                vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_NONE => {
-                    let target = ViGEmTarget {
-                        target,
-                        target_type,
-                        callback: None,
-                    };
-                    self.targets.push(target);
-                    Ok(())
-                }
-                err => Err(err),
-            }
-        }
-    }
-
-    pub fn target_x360_update(&self, report: XUsbReport) -> Result<(), vigem_api_gen::VIGEM_ERROR> {
-        unsafe {
-            for target in self.targets.iter() {
-                if let TargetType::X360 = target.target_type {
-                    match vigem_api_gen::vigem_target_x360_update(
-                        self.client,
-                        target.target,
-                        report,
-                    ) {
-                        vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_NONE => return Ok(()),
-                        err => return Err(err),
-                    }
-                };
-            }
+    pub fn add_target(&mut self, target_type: TargetType) -> Result<(), VIGEM_ERROR> {
+        let target = match target_type {
+            TargetType::X360 => unsafe { vigem_api_gen::vigem_target_x360_alloc() },
+            TargetType::Ds4 => unsafe { vigem_api_gen::vigem_target_ds4_alloc() },
         };
+        match unsafe { vigem_api_gen::vigem_target_add(self.client, target) } {
+            VIGEM_ERROR::VIGEM_ERROR_NONE => {
+                let target = ViGEmTarget {
+                    target,
+                    target_type,
+                    callback: None,
+                };
+                self.targets.push(target);
+                Ok(())
+            }
+            err => Err(err),
+        }
+    }
+
+    pub fn target_x360_update(&self, report: XUsbReport) -> Result<(), VIGEM_ERROR> {
+        for target in self.targets.iter() {
+            if let TargetType::X360 = target.target_type {
+                match unsafe {
+                    vigem_api_gen::vigem_target_x360_update(self.client, target.target, report)
+                } {
+                    VIGEM_ERROR::VIGEM_ERROR_NONE => return Ok(()),
+                    err => return Err(err),
+                }
+            };
+        }
         Ok(())
     }
 
-    pub fn register_x360_notification<F>(
-        &mut self,
-        notification: F,
-    ) -> Result<(), vigem_api_gen::VIGEM_ERROR>
+    pub fn register_x360_notification<F>(&mut self, notification: F) -> Result<(), VIGEM_ERROR>
     where
         F: FnMut(UCHAR, UCHAR, UCHAR) + 'static,
     {
@@ -98,13 +84,13 @@ impl ViGEm {
                     )
                 };
                 match res {
-                    vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_NONE => {
+                    VIGEM_ERROR::VIGEM_ERROR_NONE => {
                         current_target.callback = Some(data_ptr);
                     }
                     err => return Err(err),
                 };
             } else {
-                return Err(vigem_api_gen::VIGEM_ERROR::VIGEM_ERROR_INVALID_PARAMETER);
+                return Err(VIGEM_ERROR::VIGEM_ERROR_INVALID_PARAMETER);
             }
         }
         Ok(())
@@ -113,20 +99,22 @@ impl ViGEm {
 
 unsafe fn drop_box(user_data: LPVOID) {
     // I hope that I correctly clean this...
-    Box::from_raw(user_data as *mut _);
+    _ = Box::from_raw(user_data as *mut _);
 }
 
 impl Drop for ViGEm {
     fn drop(&mut self) {
-        unsafe {
-            for t in self.targets.iter_mut() {
-                if let TargetType::X360 = t.target_type {
-                    if let Some(n) = t.callback {
+        for t in self.targets.iter_mut() {
+            if let TargetType::X360 = t.target_type {
+                if let Some(n) = t.callback {
+                    unsafe {
                         vigem_api_gen::vigem_target_x360_unregister_notification(t.target);
                         drop_box(n);
-                        t.callback = None;
                     }
+                    t.callback = None;
                 }
+            }
+            unsafe {
                 vigem_api_gen::vigem_target_remove(self.client, t.target);
             }
         }

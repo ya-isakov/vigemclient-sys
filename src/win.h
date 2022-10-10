@@ -17,3 +17,5 @@ typedef ULONG_PTR DWORD_PTR;
 typedef int BOOL;
 typedef ULONG *PULONG;
 typedef void *LPVOID;
+typedef BYTE BOOLEAN;
+typedef unsigned long DWORD;
