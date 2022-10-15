@@ -119,7 +119,11 @@ impl Drop for ViGEm {
                 vigem_api_gen::vigem_target_free(t.target);
             }
         }
-        unsafe {vigem_api_gen::vigem_free(self.client);
+
+        unsafe {
+            vigem_api_gen::vigem_disconnect(self.client);
+            vigem_api_gen::vigem_free(self.client)
+        };
     }
 }
 
