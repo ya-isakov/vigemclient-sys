@@ -19,7 +19,7 @@ pub struct ViGEmTarget {
     callback: Option<LPVOID>,
 }
 
-type Callback = dyn FnMut(UCHAR, UCHAR, UCHAR) + 'static;
+type Callback = dyn FnMut(UCHAR, UCHAR, UCHAR) + Send + 'static;
 type BCallback = Box<Callback>;
 
 impl ViGEm {
@@ -69,7 +69,7 @@ impl ViGEm {
 
     pub fn register_x360_notification<F>(&mut self, notification: F) -> Result<(), VIGEM_ERROR>
     where
-        F: FnMut(UCHAR, UCHAR, UCHAR) + 'static,
+        F: FnMut(UCHAR, UCHAR, UCHAR) + Send + 'static,
     {
         let cb: Box<BCallback> = Box::new(Box::new(notification));
         let data_ptr = Box::into_raw(cb) as LPVOID;
@@ -116,8 +116,10 @@ impl Drop for ViGEm {
             }
             unsafe {
                 vigem_api_gen::vigem_target_remove(self.client, t.target);
+                vigem_api_gen::vigem_target_free(t.target);
             }
         }
+        unsafe {vigem_api_gen::vigem_free(self.client);
     }
 }
 
